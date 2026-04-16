@@ -58,6 +58,8 @@ Based on the user's intent, load the corresponding reference document:
 
 After initialization, the target project will have this structure:
 
+### Single-Project Repository
+
 ```
 .ai/                              # AI configuration directory (source of truth)
 ├── rules/                        # Behavior rules
@@ -73,9 +75,53 @@ After initialization, the target project will have this structure:
 .github/copilot-instructions.md  ← Compiled from .ai/rules/ (auto-loaded every conversation)
 ```
 
+### Monorepo
+
+For monorepos with multiple sub-projects that may have different tech stacks or conventions:
+
+```
+.ai/                              # Shared rules (apply to all sub-projects)
+├── rules/
+│   ├── coding.md                 # Shared coding conventions
+│   ├── architecture.md           # Shared architecture constraints
+│   ├── testing.md                # Shared testing conventions
+│   └── review.md                 # Review rules (NOT compiled)
+└── context/
+    ├── project.md                # Monorepo overview
+    └── components.md             # Shared component index
+
+.ai-<name>/                       # Sub-project specific rules (one per sub-project)
+├── rules/
+│   ├── coding.md                 # e.g., React-specific or Vue-specific rules
+│   └── architecture.md           # Sub-project architecture
+└── context/
+    ├── components.md             # Sub-project component index
+    └── api.md                    # Sub-project API catalog
+
+.github/
+├── copilot-instructions.md       ← Compiled from .ai/rules/ (shared rules)
+└── instructions/                 ← Path-specific instructions (Copilot native feature)
+    ├── <name>.instructions.md    # applyTo: "apps/<name>/**"
+    └── <name2>.instructions.md   # applyTo: "packages/<name2>/**"
+```
+
+Path-specific instructions use GitHub Copilot's native `applyTo` feature. Each `.instructions.md` file has a frontmatter specifying which files it applies to:
+
+```markdown
+---
+applyTo: "apps/web/**"
+---
+
+[Compiled sub-project rules here]
+```
+
+When editing a file, Copilot loads: **shared `copilot-instructions.md`** + **matching path-specific instructions** — both are merged automatically.
+
 ### Compilation Rule
 
 All `.ai/rules/*.md` files **except `review.md`** are compiled into `.github/copilot-instructions.md`.
+
+For monorepos, each `.ai-<name>/rules/*.md` is compiled into `.github/instructions/<name>.instructions.md` with the appropriate `applyTo` glob.
 
 - `review.md` is excluded because review rules should only load during review, not during coding
 - Context files (`.ai/context/`) are NOT compiled — they are loaded on demand during workflows

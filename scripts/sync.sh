@@ -1,5 +1,6 @@
 #!/bin/bash
 # flow-abc sync — Compile .ai/rules/ → .github/copilot-instructions.md
+#                 For monorepos, also compile .ai-<name>/rules/ → .github/instructions/<name>.instructions.md
 #
 # Usage: bash sync.sh [project-root]
 # If no argument, uses current directory.
@@ -50,3 +51,58 @@ if [ "$FOUND" -eq 0 ]; then
 fi
 
 echo "✅ Compiled $FOUND rule file(s) → $OUTPUT_FILE"
+
+# --- Monorepo: compile path-specific instructions ---
+
+INSTRUCTIONS_DIR="$OUTPUT_DIR/instructions"
+SUB_COUNT=0
+
+for SUB_DIR in "$PROJECT_ROOT"/.ai-*/; do
+  [ -d "$SUB_DIR/rules" ] || continue
+
+  NAME=$(basename "$SUB_DIR")
+  NAME="${NAME#.ai-}"
+
+  # Read applyTo glob from file, default to "**"
+  APPLY_TO="**"
+  if [ -f "$SUB_DIR/applyTo" ]; then
+    APPLY_TO=$(cat "$SUB_DIR/applyTo")
+  fi
+
+  mkdir -p "$INSTRUCTIONS_DIR"
+  SUB_OUTPUT="$INSTRUCTIONS_DIR/${NAME}.instructions.md"
+
+  # Write frontmatter + header
+  cat > "$SUB_OUTPUT" << EOF
+---
+applyTo: "$APPLY_TO"
+---
+
+<!-- Auto-generated from .ai-${NAME}/rules/. Edit source files, then recompile with sync. -->
+
+EOF
+
+  # Append all rule files except review.md
+  SUB_FOUND=0
+  for f in "$SUB_DIR/rules/"*.md; do
+    [ -f "$f" ] || continue
+    BASENAME=$(basename "$f")
+    if [ "$BASENAME" = "review.md" ]; then
+      continue
+    fi
+    cat "$f" >> "$SUB_OUTPUT"
+    echo -e "\n---\n" >> "$SUB_OUTPUT"
+    SUB_FOUND=$((SUB_FOUND + 1))
+  done
+
+  if [ "$SUB_FOUND" -gt 0 ]; then
+    echo "✅ Compiled $SUB_FOUND rule file(s) → $SUB_OUTPUT (applyTo: $APPLY_TO)"
+    SUB_COUNT=$((SUB_COUNT + 1))
+  else
+    rm -f "$SUB_OUTPUT"
+  fi
+done
+
+if [ "$SUB_COUNT" -gt 0 ]; then
+  echo "📦 Monorepo: compiled $SUB_COUNT sub-project instruction(s)"
+fi

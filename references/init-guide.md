@@ -9,6 +9,26 @@ Before starting, confirm with the user:
 1. This is a frontend project they want to add AI development rules to
 2. They understand that `.ai/` directory and `.github/copilot-instructions.md` will be created
 
+## Step 0: Detect Project Type
+
+Determine if this is a single-project repo or a monorepo:
+
+**Monorepo indicators:**
+- Root `package.json` has `workspaces` field
+- `pnpm-workspace.yaml` exists
+- `lerna.json` exists
+- Multiple `package.json` files in `apps/`, `packages/`, or similar directories
+- `turbo.json` or `nx.json` exists
+
+**If monorepo detected:**
+1. List all sub-projects (directories with their own `package.json`)
+2. Ask the user which sub-projects to initialize (or all)
+3. For each sub-project, detect tech stack independently
+4. Shared rules go in `.ai/`, sub-project rules go in `.ai-<name>/`
+5. Compilation produces both `.github/copilot-instructions.md` (shared) and `.github/instructions/<name>.instructions.md` (per sub-project)
+
+**If single-project:** proceed to Step 1 as normal.
+
 ## Step 1: Detect Tech Stack
 
 Read these files to understand the project:
@@ -181,6 +201,53 @@ for f in .ai/rules/*.md; do
 done
 ```
 
+### Monorepo: Compile Path-Specific Instructions
+
+For each sub-project `.ai-<name>/`, compile into `.github/instructions/<name>.instructions.md`:
+
+```bash
+mkdir -p .github/instructions
+
+# For each sub-project config directory
+for sub_dir in .ai-*/; do
+  [ -d "$sub_dir/rules" ] || continue
+  NAME="${sub_dir#.ai-}"
+  NAME="${NAME%/}"
+
+  # Detect the applyTo path from .ai-<name>/applyTo (single line with glob)
+  APPLY_TO="**"
+  if [ -f "$sub_dir/applyTo" ]; then
+    APPLY_TO=$(cat "$sub_dir/applyTo")
+  fi
+
+  OUTPUT=".github/instructions/${NAME}.instructions.md"
+
+  # Write frontmatter
+  cat > "$OUTPUT" << EOF
+---
+applyTo: "$APPLY_TO"
+---
+
+<!-- Auto-generated from .ai-${NAME}/rules/. Edit source files, then recompile. -->
+
+EOF
+
+  # Append all rules except review.md
+  for f in "$sub_dir/rules/"*.md; do
+    [ -f "$f" ] || continue
+    [ "$(basename "$f")" = "review.md" ] && continue
+    cat "$f" >> "$OUTPUT"
+    echo -e "\n---\n" >> "$OUTPUT"
+  done
+done
+```
+
+Each sub-project directory should contain an `applyTo` file with the glob pattern, e.g.:
+```
+# .ai-web/applyTo
+apps/web/**
+```
+
 Or use the sync script: `bash <skill-scripts-path>/sync.sh`
 
 ## Step 6: Recommend Skills
@@ -217,6 +284,17 @@ After completing all steps, present a summary to the user:
   - 检查 .ai/rules/ 中的规则，按需调整
   - 编辑后运行编译更新 copilot-instructions.md
   - 将 .ai/ 和 .github/copilot-instructions.md 提交到 Git
+```
+
+For monorepo, additionally show:
+
+```
+Monorepo 子项目规则：
+  .ai-<name>/rules/         — <name> 专属规则
+  .ai-<name>/applyTo        — 路径匹配: apps/<name>/**
+
+已编译路径指令：
+  .github/instructions/<name>.instructions.md ← 编辑 apps/<name>/ 时自动生效
 ```
 
 ---

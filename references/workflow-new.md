@@ -179,7 +179,7 @@ If no Figma:
 
 ### Hybrid Testing Strategy:
 
-#### 5a. Test Skeleton (should already exist from Step 1)
+#### 5a. Test Skeleton (may already exist from Step 1)
 
 If a test skeleton was created during requirements:
 ```typescript

@@ -13,6 +13,8 @@
 
 ## 目录结构
 
+### 单项目仓库
+
 ```
 .ai/
 ├── context/                  # 项目上下文（详细信息，按需加载）
@@ -37,8 +39,55 @@
 
 # 编译产物（由 flow-abc sync 生成，不应手动编辑）
 .github/copilot-instructions.md
-AGENTS.md
 ```
+
+### Monorepo
+
+对于包含多个子项目的 monorepo，使用 `.ai-<name>/` 存放子项目专属规则，利用 GitHub Copilot 原生的 path-specific instructions 实现按路径加载：
+
+```
+.ai/                              # 共享规则（所有子项目通用）
+├── rules/
+│   ├── coding.md                 # 通用编码规范
+│   ├── architecture.md           # 通用架构约束
+│   └── testing.md                # 通用测试规范
+└── context/
+    └── project.md                # Monorepo 全局概述
+
+.ai-web/                          # apps/web 专属规则
+├── rules/
+│   ├── coding.md                 # React + TypeScript 规范
+│   └── architecture.md           # Web 端架构约束
+├── context/
+│   └── components.md             # Web 端组件索引
+└── applyTo                       # 内容: apps/web/**
+
+.ai-admin/                        # apps/admin 专属规则
+├── rules/
+│   ├── coding.md                 # Vue + TypeScript 规范
+│   └── architecture.md           # Admin 端架构约束
+├── context/
+│   └── components.md             # Admin 端组件索引
+└── applyTo                       # 内容: apps/admin/**
+
+# 编译产物
+.github/
+├── copilot-instructions.md               ← 编译自 .ai/rules/（共享规则）
+└── instructions/
+    ├── web.instructions.md               ← 编译自 .ai-web/rules/（applyTo: apps/web/**）
+    └── admin.instructions.md             ← 编译自 .ai-admin/rules/（applyTo: apps/admin/**）
+```
+
+**工作机制**：编辑 `apps/web/src/App.tsx` 时，Copilot 同时加载：
+1. `.github/copilot-instructions.md`（共享规则，始终生效）
+2. `.github/instructions/web.instructions.md`（匹配 `apps/web/**`）
+
+两份指令**合并生效**，path-specific 优先级高于 repository-wide。
+
+**`applyTo` 文件**：每个 `.ai-<name>/` 目录下的 `applyTo` 文件包含一行 glob 模式，指定该子项目对应的文件路径。支持标准 glob 语法：
+- `apps/web/**` — 匹配 apps/web 下所有文件
+- `packages/ui/**,packages/utils/**` — 逗号分隔多个路径
+- `**/*.vue` — 按文件类型匹配
 
 ---
 
@@ -274,7 +323,6 @@ rules:
   # 编译目标
   compile:
     copilotInstructions: true    # 生成 .github/copilot-instructions.md
-    agentsMd: true               # 生成 AGENTS.md
 
 # 扫描配置
 scan:
@@ -309,15 +357,27 @@ recommendedSkills:
 .ai/rules/component.md        │
 .ai/rules/testing.md          ─┘
 
-.ai/rules/review.md              ──▶  AGENTS.md（供 Copilot Coding Agent 使用）
-                                  ──▶  流程模板按需读取（供 Copilot CLI 使用）
+.ai/rules/review.md              ──▶  不编译，由流程模板在 Review 步骤按需读取
+```
+
+**Monorepo 额外编译**：
+
+```
+.ai-web/rules/coding.md      ─┐
+.ai-web/rules/architecture.md ┘──▶  .github/instructions/web.instructions.md
+                                     (applyTo: apps/web/**)
+
+.ai-admin/rules/coding.md    ─┐
+.ai-admin/rules/architecture.md┘──▶  .github/instructions/admin.instructions.md
+                                      (applyTo: apps/admin/**)
 ```
 
 **编译规则**：
 1. 按文件顺序拼接 rules 内容（review.md 除外）
 2. 加上 header（说明这是自动生成的，不要手动编辑）
-3. Review 规则编译为 AGENTS.md（Coding Agent 自动加载）；CLI 场景由流程模板在 Review 步骤指令读取 `.ai/rules/review.md`
-4. 编译产物头部加注释：
+3. Review 规则不编译，由流程模板在 Review 步骤按需读取 `.ai/rules/review.md`
+4. Monorepo 子项目规则编译为 `.github/instructions/<name>.instructions.md`，头部包含 `applyTo` frontmatter
+5. 编译产物头部加注释：
 
 ```markdown
 <!-- 
@@ -330,7 +390,7 @@ recommendedSkills:
 ### 何时需要 sync
 
 - `flow-abc init` 后自动执行一次
-- 修改了 `.ai/rules/` 下的文件后，手动运行 `flow-abc sync`
+- 修改了 `.ai/rules/` 或 `.ai-<name>/rules/` 下的文件后，手动运行 `flow-abc sync`
 - 可以配置 Git hooks（pre-commit）自动 sync
 
 ---
@@ -364,9 +424,9 @@ recommendedSkills:
 ## 版本管理
 
 `.ai/` 目录应该纳入 Git 版本管理：
-- ✅ 提交 `.ai/` 目录（规则是团队共识，应该共享）
-- ✅ 提交编译产物（`copilot-instructions.md`、`AGENTS.md`）
-- `.gitignore` 无需排除 `.ai/` 中的任何内容
+- ✅ 提交 `.ai/` 目录和所有 `.ai-*/` 目录（规则是团队共识，应该共享）
+- ✅ 提交编译产物（`copilot-instructions.md` 和 `.github/instructions/*.instructions.md`）
+- `.gitignore` 无需排除 `.ai/` 或 `.ai-*/` 中的任何内容
 
 编译产物虽然可以从源文件生成，但提交它们确保：
 - 不依赖 flow-abc 工具也能使用 Copilot 规则

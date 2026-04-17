@@ -93,10 +93,32 @@ import type { UserVO } from '@/types/user';
 - Never use raw `fetch` or `axios` directly
 - API functions in `src/api/[module].ts` or `src/services/[module].ts`
 
-### Error Handling
+### Error Handling — Respect Global Interceptors
 **Level**: MUST
-- All API calls must have error handling
-- No silent Promise rejections
+- Understand what the request wrapper already handles globally before writing local error handling
+- Example: if interceptors already call `message.error()` for non-200 responses,
+  callers MUST NOT duplicate the error message
+
+```typescript
+// If request wrapper already shows error toast globally:
+
+// ✅ Correct — only handle business logic, no duplicate message
+try {
+  const data = await getUserList(params);
+  setUsers(data.map(adaptUser));
+} catch {
+  // error message already shown by interceptor
+  // only handle local state cleanup if needed
+}
+
+// ❌ Wrong — duplicate error message
+try {
+  const data = await getUserList(params);
+  setUsers(data.map(adaptUser));
+} catch (error) {
+  message.error('获取用户列表失败');  // duplicated! interceptor already showed this
+}
+```
 
 ### Data Transformation (Adapter Pattern)
 **Level**: MUST

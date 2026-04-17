@@ -128,6 +128,45 @@ Read 3-5 representative files from each category to identify patterns:
 - Return value patterns
 - Common patterns used
 
+### 3.1 Deep Analysis: Global Behaviors
+
+**This is critical.** Many projects have global-level logic that makes certain local-level
+patterns unnecessary or even harmful. You MUST trace these patterns:
+
+**Request / Response layer** — Read the request wrapper (e.g. `utils/request.ts`, `lib/http.ts`,
+axios interceptors) thoroughly. Identify what is already handled globally:
+- ❓ Does the interceptor already show error messages (message.error / toast)?
+  → If yes: callers MUST NOT duplicate error messages
+- ❓ Does it handle auth failures (401 → redirect to login)?
+  → If yes: callers MUST NOT handle 401 separately
+- ❓ Does it transform response format (unwrap `data` from `{ code, data, message }`)?
+  → If yes: document the actual return shape callers receive
+- ❓ Does it add global headers (token, locale)?
+  → If yes: callers MUST NOT set these headers manually
+- ❓ Does it have retry logic?
+  → If yes: callers MUST NOT implement their own retry
+
+**State management layer** — Read store setup and provider files:
+- ❓ Is auth/user state managed globally?
+  → If yes: components MUST NOT fetch user info independently
+- ❓ Are there global loading/error states?
+  → If yes: document when to use global vs local loading states
+
+**Router / middleware layer** — Read route guards, middleware, layouts:
+- ❓ Are there auth guards on routes?
+  → If yes: page components MUST NOT check auth themselves
+- ❓ Is there a global error boundary / fallback?
+  → If yes: document what it catches and what needs local handling
+
+**UI framework conventions** — Read theme/config setup:
+- ❓ Is there a global message/notification config?
+  → If yes: document the correct API to use and what NOT to call
+- ❓ Are form validation rules standardized?
+  → If yes: document the pattern, don't let AI reinvent it
+
+**The principle: identify every "already handled at layer X, so don't repeat at layer Y" pattern.
+These are the highest-value rules because AI WILL get them wrong without explicit guidance.**
+
 ## Step 4: Generate Rule Files
 
 Based on your analysis, generate the rule files. **Present each file's key content

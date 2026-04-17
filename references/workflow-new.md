@@ -68,6 +68,27 @@ function adaptXxxResponse(dto: XxxDTO): XxxVO { ... }
    - Wait for user confirmation or corrections
    - This is a **checkpoint** — don't proceed without approval
 
+4. **Ask about reference implementations**:
+   After confirming the feature spec, proactively ask:
+
+   ```
+   这个需求有现成的参考实现可以借鉴吗？
+   比如：其他项目写过类似功能、或者有现成的代码片段。
+   没有也没关系，直接说"没有"继续。
+   ```
+
+   **Also check existing patterns** before asking:
+   - Check skill-level `patterns/` directory for matching patterns
+   - Check project-level `.ai/context/patterns/` for matching patterns
+   - If found, show the match: "💡 找到了一个 [name] 的参考实现，要用这个吗？"
+
+   If the user provides a reference:
+   - Follow [init-guide.md §Add-Pattern](init-guide.md) to save it
+   - Load it as context for the current task
+   - Then continue to Step 2
+
+   If no reference → proceed normally
+
 ### Adapter/Mock Pattern
 
 Design the adapter layer upfront:
@@ -247,6 +268,23 @@ For detailed review process, see [review-guide.md](review-guide.md).
 - Focus on: bugs, security, performance, logic errors
 
 ### Completion signal: No critical issues, or user acknowledges findings
+
+---
+
+## Mid-Workflow: Adding Reference Patterns
+
+At **any point** during the workflow, the user may say:
+- "我有个参考代码"
+- "等一下，我有个类似的实现"
+- Or paste code directly
+
+When this happens:
+1. **Pause the current step** — remember where you are
+2. Follow [init-guide.md §Add-Pattern](init-guide.md) to collect and save the pattern
+3. **Load the pattern** as context for the current task
+4. **Resume** from where you paused, now informed by the reference
+
+This is not a separate workflow — it's an interrupt that can happen during any step.
 
 ---
 

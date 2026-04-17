@@ -11,6 +11,7 @@ license: MIT
 metadata:
   author: flow-abc
   version: "2.0.0"
+  repository: "zxj777/flow-abc"
 ---
 
 # flow-abc — AI Frontend Development Harness
@@ -52,8 +53,15 @@ Based on the user's intent, load the corresponding reference document:
 | Scan / refresh components | [references/init-guide.md](references/init-guide.md) §Scan | Re-scan component index and context files |
 | Audit project health | [references/init-guide.md](references/init-guide.md) §Audit | One-time architecture and convention analysis |
 | Remove AI config from project | [references/init-guide.md](references/init-guide.md) §Clean | Remove `.ai/`, `copilot-instructions.md` (supports sub-project path) |
+| Add library context | [references/init-guide.md](references/init-guide.md) §Add-Lib | Add `.ai/context/libs/<name>.md` for internal/third-party library |
+| Add reference pattern | [references/init-guide.md](references/init-guide.md) §Add-Pattern | Add `.ai/context/patterns/<name>.md` from code example |
 
 **How to route**: Read the user's message, identify the primary intent from the table above, then load and follow the corresponding reference document.
+
+**Pattern resolution**: When a workflow involves functionality that might have a reference implementation, check in this order:
+1. **Skill-level patterns** — `patterns/` directory in this skill repo (shared across all projects)
+2. **Project-level patterns** — `.ai/context/patterns/` in the target project (project-specific)
+3. **Ask the user** — "Do you have a reference implementation for this?"
 
 ## Project Rule File System
 
@@ -63,18 +71,33 @@ After initialization, the target project will have this structure:
 
 ```
 .ai/                              # AI configuration directory (source of truth)
-├── rules/                        # Behavior rules
+├── rules/                        # Behavior rules (compiled → copilot-instructions.md)
 │   ├── coding.md                 # Coding conventions (naming, TypeScript, imports)
 │   ├── architecture.md           # Architecture constraints (API layer, state, components)
 │   ├── testing.md                # Testing conventions
 │   └── review.md                 # Review rules (NOT compiled into instructions)
-└── context/                      # Project context (loaded on demand)
+└── context/                      # Project context (NOT compiled, loaded on demand)
     ├── project.md                # Project overview, tech stack, architecture
     ├── components.md             # Component index (auto-generated)
-    └── api.md                    # API endpoint catalog
+    ├── api.md                    # API endpoint catalog
+    ├── libs/                     # Internal/third-party library context (per-library files)
+    │   └── <lib-name>.md         # API signatures + usage example + gotchas
+    └── patterns/                 # Reference implementations from other projects
+        └── <pattern-name>.md     # Working code example + adaptation notes
 
-.github/copilot-instructions.md  ← Compiled from .ai/rules/ (auto-loaded every conversation)
+.github/copilot-instructions.md  ← Compiled from .ai/rules/ ONLY (auto-loaded every conversation)
 ```
+
+### What gets compiled vs loaded on demand
+
+| Directory | Compiled to `copilot-instructions.md` | Loaded | When |
+|---|---|---|---|
+| `.ai/rules/*.md` (except review.md) | ✅ Yes | Every conversation | Always |
+| `.ai/rules/review.md` | ❌ No | On demand | Review workflow only |
+| `.ai/context/project.md` | ❌ No | On demand | Workflows that need project overview |
+| `.ai/context/components.md` | ❌ No | On demand | Component matching, new feature workflow |
+| `.ai/context/libs/<name>.md` | ❌ No | On demand | When task involves that library |
+| `.ai/context/patterns/<name>.md` | ❌ No | On demand | When task needs that reference pattern |
 
 ### Monorepo
 
@@ -148,6 +171,8 @@ These are natural language triggers — users just say them in conversation:
 - "重新扫描组件" / "Rescan components" → scan
 - "检查项目规范健康度" / "Audit project health" → audit
 - "移除 AI 规范" / "Remove AI config" / "Clean" → clean (支持指定子项目路径)
+- "添加 xxx 的上下文" / "Add context for xxx" → add-lib
+- "加个参考实现" / "Add reference pattern" → add-pattern
 
 ## Integration with Other Skills
 

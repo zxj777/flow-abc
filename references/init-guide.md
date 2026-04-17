@@ -508,3 +508,223 @@ rmdir "$TARGET/.github/" 2>/dev/null
 
 AI 将不再加载该项目的特定规则。如需重新初始化，说 "初始化 AI 规范"。
 ```
+
+---
+
+## §Add-Lib — Add Library Context
+
+When the user wants to add context for an internal or third-party library:
+
+**Triggers**: "添加 xxx 的上下文", "Add context for xxx", or mid-workflow when AI encounters an unfamiliar library.
+
+### Steps:
+
+1. **Identify the library** — From user's mention or from import statements in code.
+
+2. **Gather information** — Try these sources in order:
+   - `node_modules/<package>/` — Read type definitions (`.d.ts`), README, package.json
+   - Project code — Search for existing usage patterns (`grep` for imports)
+   - User input — Ask the user to describe the API or paste key type definitions
+
+3. **Generate context file** — Write to `.ai/context/libs/<name>.md`:
+
+```markdown
+# <Library Name>
+
+> Source: <internal package / npm / user-provided>
+
+## Key APIs
+
+### functionName(params): ReturnType
+- Purpose: [what it does]
+- Example:
+```typescript
+const result = functionName({ key: 'value' })
+```
+
+## Usage Conventions in This Project
+- [How this project typically uses the library]
+- [Any wrappers or abstractions on top]
+
+## Gotchas
+- [Common mistakes or things AI should avoid]
+```
+
+4. **Confirm with user**:
+
+```
+📚 已生成库上下文: .ai/context/libs/<name>.md
+
+包含:
+  - N 个关键 API
+  - 项目中的使用惯例
+  - N 条注意事项
+
+请检查内容是否准确，需要调整告诉我。
+```
+
+**Important**: This file is NOT compiled into `copilot-instructions.md`. It is loaded on demand
+when a workflow involves this library.
+
+### Updating existing lib context
+
+If `.ai/context/libs/<name>.md` already exists, show the user the current version and ask:
+- Overwrite (重新生成)
+- Append new content (追加)
+- Cancel
+
+---
+
+## §Add-Pattern — Add Reference Implementation
+
+When the user has a working code example they want AI to reference for future development.
+
+**Triggers**:
+- Standalone: "加个参考实现", "Add reference pattern"
+- During workflow Step 1: User answers "yes" when asked about reference implementations
+- Mid-workflow: User interrupts with "我有个参考代码" or pastes code
+
+### Two sources:
+
+**A. User provides code directly** (paste or file path):
+
+1. User pastes code or points to a file
+2. AI reads and understands the code
+3. AI generates a pattern file with annotations
+
+**B. From another project** (user describes the location):
+
+1. User says "我在 xxx 项目有个 Excel 导出的实现"
+2. AI asks: "能粘贴关键代码，或者告诉我文件路径吗？"
+3. User provides the code
+4. AI generates a pattern file
+
+### Pattern file format:
+
+Write to `.ai/context/patterns/<name>.md`:
+
+```markdown
+# Pattern: <Name>
+
+> 用途: [what this pattern solves]
+> 来源: [where it came from — user-provided / project-name / etc.]
+
+## Reference Implementation
+
+```typescript
+// The actual working code, with comments explaining key decisions
+export async function exportToExcel(data: ExportData[], options: ExportOptions) {
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet(options.sheetName)
+
+  // Set column definitions from options
+  sheet.columns = options.columns.map(col => ({
+    header: col.label,
+    key: col.key,
+    width: col.width ?? 20,
+  }))
+
+  // Add data rows
+  data.forEach(row => sheet.addRow(row))
+
+  // Style header row
+  sheet.getRow(1).font = { bold: true }
+
+  // Generate and download
+  const buffer = await workbook.xlsx.writeBuffer()
+  downloadBlob(buffer, `${options.fileName}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+}
+```
+
+## Adaptation Notes
+
+When using this pattern in current project:
+- [What to keep as-is]
+- [What to adapt to current project conventions]
+- [Dependencies needed: e.g., `npm install exceljs`]
+
+## Key Decisions
+
+- [Why this approach over alternatives]
+- [Performance considerations]
+- [Edge cases handled]
+```
+
+### Steps:
+
+1. **Collect** — Get the code from user (paste, file path, or description)
+
+2. **Understand** — Identify what the pattern does, key decisions, dependencies
+
+3. **Generate** — Write `.ai/context/patterns/<name>.md` in the format above
+
+4. **If mid-workflow** — Immediately load the pattern as context for the current task:
+   ```
+   📝 已保存参考实现: .ai/context/patterns/<name>.md
+   已加载为当前任务的上下文，继续开发...
+   ```
+
+5. **If standalone** — Confirm:
+   ```
+   📝 已保存参考实现: .ai/context/patterns/<name>.md
+
+   AI 在后续开发涉及 [相关功能] 时会自动参考此实现。
+   该文件不会编译到 copilot-instructions.md，仅按需加载。
+   ```
+
+**Important**: Pattern files are NOT compiled. They are loaded on demand when AI determines
+the current task relates to the pattern's purpose.
+
+### Also check skill-level patterns
+
+Before asking the user to provide code, check if `patterns/` directory in this skill repo
+already has a matching pattern. If found, show it to the user:
+
+```
+💡 flow-abc 自带了一个 [pattern-name] 的参考实现，要直接用这个吗？
+还是你有自己项目的版本？
+```
+
+### Push to skill repo (share across all projects)
+
+After saving a project-level pattern, ask the user:
+
+```
+这个 pattern 要推送到 flow-abc skill 仓库，共享给所有项目吗？
+```
+
+If the user confirms, push automatically using the repository info from SKILL.md metadata:
+
+```bash
+SKILL_REPO="<repository from SKILL.md metadata>"  # e.g. zxj777/flow-abc
+PATTERN_FILE=".ai/context/patterns/<name>.md"
+PATTERN_NAME="<name>"
+TEMP_DIR=$(mktemp -d)
+
+# Clone, copy, commit, push
+gh repo clone "$SKILL_REPO" "$TEMP_DIR" -- --depth 1
+mkdir -p "$TEMP_DIR/patterns"
+cp "$PATTERN_FILE" "$TEMP_DIR/patterns/$PATTERN_NAME.md"
+cd "$TEMP_DIR"
+git add "patterns/$PATTERN_NAME.md"
+git commit -m "feat(patterns): add $PATTERN_NAME"
+git push origin main
+
+# Cleanup
+rm -rf "$TEMP_DIR"
+```
+
+Then report:
+
+```
+✅ 已推送到 skill 仓库: patterns/<name>.md
+所有使用 flow-abc skill 的项目更新后即可共享此参考实现。
+```
+
+If push fails (no permission, network error), fall back gracefully:
+
+```
+⚠️ 推送失败: <error>
+pattern 已保存在本项目: .ai/context/patterns/<name>.md
+你可以手动推送到 skill 仓库，或稍后重试。
+```

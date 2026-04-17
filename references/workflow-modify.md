@@ -99,6 +99,17 @@ Your requested change: add server-side filtering
 
 ### Wait for user confirmation
 
+4. **Ask about reference implementations**:
+
+   ```
+   这个修改有现成的参考实现可以借鉴吗？
+   ```
+
+   - Check skill-level `patterns/` and project-level `.ai/context/patterns/` first
+   - If found, show the match and ask if it's relevant
+   - If user provides code, follow [init-guide.md §Add-Pattern](init-guide.md) to save and load
+   - Then continue to Step 4
+
 ---
 
 ## Step 4: Implement
@@ -160,6 +171,13 @@ Your requested change: add server-side filtering
 Read `.ai/rules/review.md` for detailed review rules.
 
 ### Completion signal: No critical issues found
+
+---
+
+## Mid-Workflow: Adding Reference Patterns
+
+At **any point** during the workflow, the user may provide reference code.
+When this happens: pause → save pattern via [init-guide.md §Add-Pattern](init-guide.md) → load as context → resume.
 
 ---
 

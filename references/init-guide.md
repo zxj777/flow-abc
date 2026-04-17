@@ -32,13 +32,45 @@ Determine if this is a single-project repo or a monorepo:
 
 **If single-project:** proceed to Step 1 as normal.
 
-## Step 1: Detect Tech Stack
+## Step 1: Full Inventory (List Everything, Read Nothing)
 
-Read these files to understand the project:
+**First, get a complete picture of the project.** Run a recursive file listing of the entire
+source tree. Do NOT read file contents yet — only collect paths.
+
+```bash
+# List all source files (exclude node_modules, dist, .git, etc.)
+find . -type f \
+  -not -path '*/node_modules/*' \
+  -not -path '*/.git/*' \
+  -not -path '*/dist/*' \
+  -not -path '*/build/*' \
+  -not -path '*/.next/*' \
+  -not -path '*/.nuxt/*' \
+  -not -path '*/coverage/*' \
+  | sort
+```
+
+**From this file list, identify:**
+
+- **Project scale** — How many source files? (50 files vs 500 files → different strategies)
+- **Directory structure** — What are the top-level directories under `src/`?
+- **Module boundaries** — Are there clear domain folders (e.g., `modules/user/`, `features/auth/`)?
+- **File naming patterns** — PascalCase / camelCase / kebab-case (observable from paths alone)
+- **Co-location patterns** — Are tests, styles, types next to components or in separate trees?
+- **Key infrastructure files** — Spot files like `request.ts`, `http.ts`, `auth.ts`, `router.ts`,
+  `store/index.ts`, `middleware.ts`, `App.tsx`, `main.tsx`
+
+**This inventory is the foundation for all subsequent reads.** Don't skip it.
+
+## Step 2: Config & Entry Point Reads (Must-Read Files)
+
+Now read file contents, starting with the highest-signal files.
+
+### 2.1 Config Files (tech stack detection)
 
 ```
 package.json          → Framework, dependencies, scripts
-tsconfig.json         → TypeScript configuration
+tsconfig.json         → TypeScript configuration, path aliases
 .eslintrc* / eslint.config.*  → Linting rules
 .prettierrc*          → Formatting preferences
 vite.config.* / next.config.* / nuxt.config.*  → Build tool & framework config
@@ -53,88 +85,27 @@ vite.config.* / next.config.* / nuxt.config.*  → Build tool & framework config
 - Testing: Jest / Vitest / Playwright / None
 - CSS: Tailwind / CSS Modules / Styled Components / SCSS
 
-## Step 2: Scan Project Structure
+### 2.2 Entry Points (architecture skeleton)
 
-```
-src/                  → Main source directory
-├── components/       → Shared components
-├── pages/ or views/  → Page components
-├── hooks/ or composables/  → Custom hooks
-├── services/ or api/ → API layer
-├── stores/ or store/ → State management
-├── utils/ or lib/    → Utility functions
-├── types/            → TypeScript type definitions
-└── assets/           → Static assets
-```
+Read the application entry and top-level wiring files:
 
-**Analyze:**
-- Directory structure conventions
-- Component organization pattern (flat vs nested, co-located vs separated)
-- Import alias patterns (check tsconfig paths or vite resolve)
-- File naming conventions (PascalCase, camelCase, kebab-case)
+- **App entry**: `main.tsx` / `main.ts` / `App.tsx` / `App.vue`
+- **Router config**: `router/index.ts`, `app/layout.tsx`, route definitions
+- **Store setup**: `store/index.ts`, provider wrappers, context providers
+- **Global styles/theme**: theme config, global CSS entry
 
-### ✅ Checkpoint 1: Confirm Detection Results
+These files reveal the application's **top-level architecture** — how routing, state, and
+rendering are wired together.
 
-Present findings to the user in this format and **wait for confirmation**:
+### 2.3 Infrastructure Files (global behaviors — CRITICAL)
 
-```
-🔍 项目检测结果：
+**This is the highest-value read.** Many projects have global-level logic that makes certain
+local-level patterns unnecessary or even harmful. You MUST find and read these files thoroughly.
 
-技术栈：
-  - 框架: React 18 + Next.js 14 (App Router)
-  - 语言: TypeScript (strict mode)
-  - 构建: Turbopack
-  - 状态管理: Zustand
-  - UI 库: Shadcn/ui + Tailwind CSS
-  - 测试: Vitest + Playwright
-  - CSS: Tailwind CSS + CSS Modules
+Use the file inventory from Step 1 to locate them. Common locations:
 
-项目结构：
-  - 组件目录: src/components/ (flat structure)
-  - 页面目录: src/app/ (App Router)
-  - Hooks: src/hooks/
-  - API 层: src/services/ (axios wrapper)
-  - 文件命名: PascalCase for components, camelCase for utils
-
-你可以：
-  - 纠正检测错误（如 "状态管理用的是 Jotai 不是 Zustand"）
-  - 补充遗漏（如 "还用了 react-query 做数据缓存"）
-  - 调整范围（如 "不需要关注测试部分"）
-确认或告诉我要调整什么。
-```
-
-**Do NOT proceed until the user responds.**
-- If the user provides adjustments → apply them, re-present updated results, wait again
-- If the user confirms → proceed to Step 3
-
-## Step 3: Analyze Code Patterns
-
-Read 3-5 representative files from each category to identify patterns:
-
-**Components** (read 3-5 from components/):
-- Component style: functional vs class, composition API vs options API
-- Props pattern: interface definition, default values
-- State management: local state, global store, context
-- Styling approach: className, styled, CSS modules
-
-**API Layer** (read services/ or api/):
-- HTTP client: axios, fetch, custom wrapper
-- Error handling pattern
-- Request/response typing
-- API organization (by domain, by method)
-
-**Hooks / Composables** (read hooks/ or composables/):
-- Naming conventions
-- Return value patterns
-- Common patterns used
-
-### 3.1 Deep Analysis: Global Behaviors
-
-**This is critical.** Many projects have global-level logic that makes certain local-level
-patterns unnecessary or even harmful. You MUST trace these patterns:
-
-**Request / Response layer** — Read the request wrapper (e.g. `utils/request.ts`, `lib/http.ts`,
-axios interceptors) thoroughly. Identify what is already handled globally:
+**Request / Response layer** — e.g. `utils/request.ts`, `lib/http.ts`, `api/client.ts`,
+axios instance files, fetch wrappers:
 - ❓ Does the interceptor already show error messages (message.error / toast)?
   → If yes: callers MUST NOT duplicate error messages
 - ❓ Does it handle auth failures (401 → redirect to login)?
@@ -146,19 +117,19 @@ axios interceptors) thoroughly. Identify what is already handled globally:
 - ❓ Does it have retry logic?
   → If yes: callers MUST NOT implement their own retry
 
-**State management layer** — Read store setup and provider files:
+**State management layer** — store setup and provider files:
 - ❓ Is auth/user state managed globally?
   → If yes: components MUST NOT fetch user info independently
 - ❓ Are there global loading/error states?
   → If yes: document when to use global vs local loading states
 
-**Router / middleware layer** — Read route guards, middleware, layouts:
+**Router / middleware layer** — route guards, middleware, layouts:
 - ❓ Are there auth guards on routes?
   → If yes: page components MUST NOT check auth themselves
 - ❓ Is there a global error boundary / fallback?
   → If yes: document what it catches and what needs local handling
 
-**UI framework conventions** — Read theme/config setup:
+**UI framework conventions** — theme/config setup:
 - ❓ Is there a global message/notification config?
   → If yes: document the correct API to use and what NOT to call
 - ❓ Are form validation rules standardized?
@@ -166,6 +137,111 @@ axios interceptors) thoroughly. Identify what is already handled globally:
 
 **The principle: identify every "already handled at layer X, so don't repeat at layer Y" pattern.
 These are the highest-value rules because AI WILL get them wrong without explicit guidance.**
+
+### ✅ Checkpoint 1: Confirm Detection Results
+
+Present findings to the user in this format and **wait for confirmation**:
+
+```
+🔍 项目检测结果：
+
+项目规模：N 个源文件
+
+技术栈：
+  - 框架: React 18 + Next.js 14 (App Router)
+  - 语言: TypeScript (strict mode)
+  - 构建: Turbopack
+  - 状态管理: Zustand
+  - UI 库: Shadcn/ui + Tailwind CSS
+  - 测试: Vitest + Playwright
+  - CSS: Tailwind CSS + CSS Modules
+
+项目结构：
+  - 组件目录: src/components/ (flat structure, N 个组件)
+  - 页面目录: src/app/ (App Router, N 个页面)
+  - Hooks: src/hooks/ (N 个)
+  - API 层: src/services/ (axios wrapper)
+  - 文件命名: PascalCase for components, camelCase for utils
+
+全局行为（已识别）：
+  - 请求层: axios interceptor 已统一 error toast + 401 跳转 + response unwrap
+  - 状态层: auth/user 全局管理 (Zustand)
+  - 路由层: auth guard 在 middleware 统一处理
+  - UI 层: Ant Design message 全局配置
+
+你可以：
+  - 纠正检测错误（如 "状态管理用的是 Jotai 不是 Zustand"）
+  - 补充遗漏（如 "还用了 react-query 做数据缓存"）
+  - 调整范围（如 "不需要关注测试部分"）
+  - 补充全局行为（如 "表单校验也有统一封装在 utils/validator.ts"）
+确认或告诉我要调整什么。
+```
+
+**Do NOT proceed until the user responds.**
+- If the user provides adjustments → apply them, re-present updated results, wait again
+- If the user confirms → proceed to Step 3
+
+## Step 3: Strategic Code Sampling
+
+Based on the inventory (Step 1) and infrastructure reads (Step 2), now read representative
+source files to identify coding patterns. **Don't read randomly — pick strategically.**
+
+### 3.1 Components (read from components/)
+
+**Selection strategy:**
+- Pick 1 **simple** component (few props, no state) — to see the baseline pattern
+- Pick 1 **complex** component (many props, local state, side effects) — to see the full pattern
+- Pick 1 **most-imported** component (referenced by many other files) — to see the common interface
+- If the project has both shared components and feature-specific components, sample from each
+
+**What to observe:**
+- Component style: functional vs class, composition API vs options API
+- Props pattern: interface definition, default values, required vs optional
+- State management: local state, global store, context
+- Styling approach: className, styled, CSS modules, Tailwind
+
+### 3.2 Pages (read 1-2 complete pages)
+
+**Selection strategy:**
+- Pick 1 **data-driven page** (table/list with API calls, filtering, pagination)
+- Pick 1 **form page** (create/edit with validation, submission)
+
+**What to observe — trace the full data flow:**
+- How is data fetched? (hook → service → adapter → component)
+- How is state managed on the page? (local vs global)
+- How are errors handled at the page level?
+- How is the page composed from smaller components?
+
+### 3.3 API / Service Layer (read 2-3 service files)
+
+**Selection strategy:**
+- Pick services from 2 different business domains (e.g., `userService` + `orderService`)
+- If there's an adapter/transform layer, read at least 1 adapter file
+
+**What to observe:**
+- API organization (by domain, by method, flat vs nested)
+- Request/response typing patterns
+- How DTOs are transformed to ViewModels (if applicable)
+- Error handling at the service level (vs. what the global interceptor already does)
+
+### 3.4 Hooks / Composables (read 2-3 most-used)
+
+**Selection strategy:**
+- From the inventory, pick hooks that are imported by the most files
+- Include at least 1 data-fetching hook and 1 UI/behavior hook
+
+**What to observe:**
+- Naming conventions (useXxx / useXxxQuery / useXxxMutation)
+- Return value patterns (tuple vs object vs single value)
+- How they compose with other hooks
+
+### 3.5 Tests (if testing files exist, read 1-2)
+
+**What to observe:**
+- Test file location pattern (co-located vs `__tests__/` vs `tests/`)
+- Testing library and utilities used
+- Test naming and organization style
+- What gets tested (behavior vs implementation)
 
 ## Step 4: Generate Rule Files
 

@@ -96,10 +96,16 @@ Present findings to the user in this format and **wait for confirmation**:
   - API 层: src/services/ (axios wrapper)
   - 文件命名: PascalCase for components, camelCase for utils
 
-检测有误或需要补充吗？确认后我将分析代码模式。
+你可以：
+  - 纠正检测错误（如 "状态管理用的是 Jotai 不是 Zustand"）
+  - 补充遗漏（如 "还用了 react-query 做数据缓存"）
+  - 调整范围（如 "不需要关注测试部分"）
+确认或告诉我要调整什么。
 ```
 
-**Do NOT proceed until the user confirms.** If they correct something, update your findings.
+**Do NOT proceed until the user responds.**
+- If the user provides adjustments → apply them, re-present updated results, wait again
+- If the user confirms → proceed to Step 3
 
 ## Step 3: Analyze Code Patterns
 
@@ -156,10 +162,17 @@ Before generating files, show the user what rules you plan to create:
 5. .ai/context/project.md — 项目概述
 6. .ai/context/components.md — 组件索引 (N 个组件)
 
-需要调整、增删吗？确认后开始生成。
+你可以：
+  - 增减规则文件（如 "不需要 testing.md"、"加一个 i18n.md"）
+  - 调整某个文件的规则内容（如 "coding.md 里加上禁止 enum，用 as const"）
+  - 修改规则严格度（如 "import 顺序改为 SHOULD 而不是 MUST"）
+  - 补充项目特有约定（如 "所有 API 响应要走 adapter 转换"）
+确认或告诉我要调整什么。
 ```
 
-**Do NOT generate until the user confirms.** Adjust the plan based on feedback.
+**Do NOT generate until the user responds.**
+- If the user requests changes → update the plan, re-present, wait again
+- If the user confirms → proceed to generate files
 
 ### 4.1 Create `.ai/rules/coding.md`
 
@@ -259,9 +272,17 @@ After generating all files, present a summary and **wait for confirmation** befo
   .ai/context/project.md     — 项目概述
   .ai/context/components.md  — 组件索引 (N 个组件)
 
-你可以查看任意文件内容，提出修改意见。
-确认后我将编译 → .github/copilot-instructions.md
+你可以：
+  - 查看任意文件的完整内容（如 "看一下 coding.md"）
+  - 要求修改具体规则（如 "architecture.md 里加上：禁止在组件中直接调用 localStorage"）
+  - 删除某个文件（如 "去掉 testing.md，我们暂时不需要"）
+  - 重新生成某个文件（如 "review.md 重新写，要更严格"）
+确认或告诉我要调整什么。编译后将生效于所有 AI 对话。
 ```
+
+**Do NOT compile until the user responds.**
+- If the user requests changes → apply changes to the files, re-present summary, wait again
+- If the user confirms → proceed to compile
 
 ## Step 5: Compile Rules
 
@@ -410,13 +431,20 @@ When the user asks for an audit:
 
 When the user asks to remove AI config / clean / 移除规范:
 
+**Supports sub-project paths.** The user may specify a sub-project:
+- "clean" → clean current project root
+- "clean packages/admin" → clean only `packages/admin/`
+- "移除 apps/web 的 AI 规范" → clean only `apps/web/`
+
+Determine the target root (default: project root, or user-specified sub-path).
+
 1. Confirm with the user what to remove:
 
 ```
-⚠️ 将移除以下 AI 配置：
+⚠️ 将移除以下 AI 配置（目标: <target-path>/）：
 
-  .ai/                              — 所有规则和上下文文件
-  .github/copilot-instructions.md   — 编译后的指令文件
+  <target>/.ai/                              — 所有规则和上下文文件
+  <target>/.github/copilot-instructions.md   — 编译后的指令文件
 
 是否保留 .github/ 目录中的其他文件（如果有）？
 确认后执行移除。
@@ -425,18 +453,19 @@ When the user asks to remove AI config / clean / 移除规范:
 2. **Wait for confirmation**, then:
 
 ```bash
-rm -rf .ai/
-rm -f .github/copilot-instructions.md
+TARGET="<target-path>"
+rm -rf "$TARGET/.ai/"
+rm -f "$TARGET/.github/copilot-instructions.md"
 # Remove .github/ only if empty
-rmdir .github/ 2>/dev/null
+rmdir "$TARGET/.github/" 2>/dev/null
 ```
 
 3. Report result:
 
 ```
-✅ 已移除：
+✅ 已移除 <target-path>/ 下的 AI 配置：
   - .ai/ (规则 + 上下文)
   - .github/copilot-instructions.md
 
-AI 将不再加载项目特定规则。如需重新初始化，说 "初始化 AI 规范"。
+AI 将不再加载该项目的特定规则。如需重新初始化，说 "初始化 AI 规范"。
 ```

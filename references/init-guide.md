@@ -105,38 +105,78 @@ local-level patterns unnecessary or even harmful. You MUST find and read these f
 Use the file inventory from Step 1 to locate them. Common locations:
 
 **Request / Response layer** — e.g. `utils/request.ts`, `lib/http.ts`, `api/client.ts`,
-axios instance files, fetch wrappers:
+axios instance files, fetch wrappers.
+
+**You MUST read the actual implementation, not just know the file exists.**
+For each question, write down the concrete answer (not just "yes/no"):
+
 - ❓ Does the interceptor already show error messages (message.error / toast)?
-  → If yes: callers MUST NOT duplicate error messages
+  → If yes: **write down the exact code** (e.g., `message.error(res.data.message)` in response
+  interceptor). Callers MUST NOT duplicate error messages.
 - ❓ Does it handle auth failures (401 → redirect to login)?
-  → If yes: callers MUST NOT handle 401 separately
-- ❓ Does it transform response format (unwrap `data` from `{ code, data, message }`)?
-  → If yes: document the actual return shape callers receive
-- ❓ Does it add global headers (token, locale)?
-  → If yes: callers MUST NOT set these headers manually
-- ❓ Does it have retry logic?
-  → If yes: callers MUST NOT implement their own retry
+  → If yes: **write down the mechanism** (e.g., "401 triggers `store.dispatch(redirectToLogin())`
+  which navigates to /login"). Callers MUST NOT handle 401 separately.
+- ❓ Does it transform response format?
+  → **Write down what callers actually receive.** E.g., backend returns `{ code, data, message }`,
+  interceptor unwraps to `data` only → callers get the inner data directly. Or: interceptor
+  does NOT unwrap → callers get the full envelope.
+- ❓ Does it add global headers (token, locale, custom headers)?
+  → If yes: **list which headers** (e.g., `Authorization: Bearer ${token}`, `gId: xxx`).
+  Callers MUST NOT set these headers manually.
+- ❓ Does it have retry logic, timeout config, or base URL patterns?
+  → **Write down the specifics** (e.g., "timeout 30s, no retry, base URL from
+  `appRequest('/user-service')` which prepends `/api/user-service`").
+- ❓ How are request instances created?
+  → **Document the factory pattern** if there is one (e.g., `appRequest('/svc-name')` returns
+  an axios instance scoped to that microservice). This determines how callers should create
+  new service files.
 
 **State management layer** — store setup and provider files:
 - ❓ Is auth/user state managed globally?
-  → If yes: components MUST NOT fetch user info independently
+  → If yes: **write down the store name, key fields, and how components access it**
+  (e.g., `useSelector(state => state.app.userInfo)`). Components MUST NOT fetch user
+  info independently.
 - ❓ Are there global loading/error states?
-  → If yes: document when to use global vs local loading states
+  → If yes: **write down when to use global vs local** (e.g., "global loading only for
+  route transitions; page-level loading uses ahooks `useRequest({ loading })`").
+- ❓ What events/actions flow through the store?
+  → **List all actions** (e.g., `redirectToLogin`, `logout`, `openChangePassword`).
+  Document what triggers them and what effect they have.
 
 **Router / middleware layer** — route guards, middleware, layouts:
 - ❓ Are there auth guards on routes?
-  → If yes: page components MUST NOT check auth themselves
+  → If yes: **write down the guard chain** (e.g., `Authenticated → AccessControlProvider
+  → PermissionGuard`). Document what each layer checks. Page components MUST NOT
+  check auth themselves.
 - ❓ Is there a global error boundary / fallback?
-  → If yes: document what it catches and what needs local handling
+  → If yes: **write down what it catches** and what still needs local handling.
+- ❓ How is route config structured?
+  → **Document the pattern** (e.g., "flat array in router/index.tsx" or "file-based routing"
+  or "nested route objects with lazy loading").
 
 **UI framework conventions** — theme/config setup:
 - ❓ Is there a global message/notification config?
-  → If yes: document the correct API to use and what NOT to call
+  → If yes: **write down the config** (e.g., `message.config({ maxCount: 1 })` in App.tsx).
+  Document the correct API to use and what NOT to call.
+- ❓ Is there a global theme / responsive strategy?
+  → **Write down the specifics** (e.g., "Emotion Global: `html { fontSize: calc(100 * 100vw
+  / 1920) }` → all rem values are relative to 1920px design"). This affects every
+  component's sizing.
 - ❓ Are form validation rules standardized?
-  → If yes: document the pattern, don't let AI reinvent it
+  → If yes: **write down where** (e.g., `utils/validators.ts` exports `phoneRule`,
+  `emailRule`). Don't let AI reinvent them.
 
-**The principle: identify every "already handled at layer X, so don't repeat at layer Y" pattern.
-These are the highest-value rules because AI WILL get them wrong without explicit guidance.**
+**CSS / styling patterns** — how styles are written:
+- ❓ What's the primary styling approach?
+  → **Write down which method is dominant** (e.g., "Emotion `css` prop for custom styles,
+  Ant Design component props for standard UI, no styled-components"). Include an example
+  of the typical pattern.
+- ❓ Are there shared style tokens / variables?
+  → **List them** (e.g., theme colors in `theme.ts`, spacing constants, shared mixins).
+
+**The principle: for every global behavior, write down the CONCRETE mechanism, not just
+"it exists". The checkpoint output must contain enough detail that a developer reading it
+can immediately know what NOT to do and WHY.**
 
 ### ✅ Checkpoint 1: Confirm Detection Results
 
@@ -145,7 +185,7 @@ Present findings to the user in this format and **wait for confirmation**:
 ```
 🔍 项目检测结果：
 
-项目规模：N 个源文件
+项目规模：N 个源文件（按类型: X tsx + Y ts + Z css + ...）
 
 技术栈：
   - 框架: React 18 + Next.js 14 (App Router)
@@ -163,11 +203,33 @@ Present findings to the user in this format and **wait for confirmation**:
   - API 层: src/services/ (axios wrapper)
   - 文件命名: PascalCase for components, camelCase for utils
 
-全局行为（已识别）：
-  - 请求层: axios interceptor 已统一 error toast + 401 跳转 + response unwrap
-  - 状态层: auth/user 全局管理 (Zustand)
-  - 路由层: auth guard 在 middleware 统一处理
-  - UI 层: Ant Design message 全局配置
+全局行为（⚠️ 必须写出具体机制，不能只写"有"）：
+
+  📡 请求层:
+    - 实例创建: appRequest('/svc-name') → 生成 baseURL 为 /api/svc-name 的 axios 实例
+    - 响应处理: interceptor 检查 res.data.code，非 0 时 message.error(res.data.message)
+    - 认证失败: 401 → store.dispatch(redirectToLogin()) → 跳转 /login
+    - Response 形状: interceptor unwrap 到 res.data.data，调用方拿到的是内层 data
+    - 全局 Headers: Authorization + gId（从 context 注入）
+    - ⛔ 禁止: 调用方不要重复 toast、不要自己处理 401、不要手动加 token
+
+  🗄️ 状态层:
+    - Redux 仅做全局事件分发: redirectToLogin / logout / openChangePassword
+    - 业务数据: ahooks useRequest / usePagination + 组件 state，不走 Redux
+    - ⛔ 禁止: 不要把页面业务数据放进 Redux
+
+  🔐 路由层:
+    - 守卫链: Authenticated → AccessControlProvider → PermissionGuard
+    - Authenticated: 检查 token 存在性
+    - AccessControlProvider: 加载权限数据
+    - PermissionGuard: 按路由配置检查具体权限
+    - ⛔ 禁止: 页面组件不要自己检查登录态或权限
+
+  🎨 UI / 样式层:
+    - Ant Design ConfigProvider: zh_CN locale + message.config({ maxCount: 1 })
+    - 响应式: Emotion Global html { fontSize: calc(100 * 100vw / 1920) }
+    - 样式写法: Emotion css prop 为主，Ant Design 组件 props 控制 UI 状态
+    - ⛔ 禁止: 不要用 inline style 对象，不要引入新的 CSS 方案
 
 你可以：
   - 纠正检测错误（如 "状态管理用的是 Jotai 不是 Zustand"）

@@ -693,26 +693,44 @@ After saving a project-level pattern, ask the user:
 这个 pattern 要推送到 flow-abc skill 仓库，共享给所有项目吗？
 ```
 
-If the user confirms, push automatically using the repository info from SKILL.md metadata:
+If the user confirms, push automatically. Use the actual repository value from this skill's
+`SKILL.md` metadata (`repository: "zxj777/flow-abc"`), then run the whole block as one shell session:
 
 ```bash
-SKILL_REPO="<repository from SKILL.md metadata>"  # e.g. zxj777/flow-abc
-PATTERN_FILE=".ai/context/patterns/<name>.md"
-PATTERN_NAME="<name>"
-TEMP_DIR=$(mktemp -d)
+set -euo pipefail
 
-# Clone, copy, commit, push
+SKILL_REPO="zxj777/flow-abc"
+PATTERN_NAME="<actual-pattern-name>"
+PATTERN_FILE=".ai/context/patterns/${PATTERN_NAME}.md"
+TEMP_DIR="$(mktemp -d)"
+
+cleanup() {
+  rm -rf "$TEMP_DIR"
+}
+trap cleanup EXIT
+
+if [ ! -f "$PATTERN_FILE" ]; then
+  echo "Pattern file not found: $PATTERN_FILE" >&2
+  exit 1
+fi
+
 gh repo clone "$SKILL_REPO" "$TEMP_DIR" -- --depth 1
 mkdir -p "$TEMP_DIR/patterns"
 cp "$PATTERN_FILE" "$TEMP_DIR/patterns/$PATTERN_NAME.md"
+
 cd "$TEMP_DIR"
 git add "patterns/$PATTERN_NAME.md"
-git commit -m "feat(patterns): add $PATTERN_NAME"
-git push origin main
 
-# Cleanup
-rm -rf "$TEMP_DIR"
+if git diff --cached --quiet; then
+  echo "Pattern already synced to skill repo."
+  exit 0
+fi
+
+git commit -m "feat(patterns): add $PATTERN_NAME"
+git push origin HEAD:main
 ```
+
+If this shell block exits non-zero at any step, stop the push flow and use the fallback response below.
 
 Then report:
 

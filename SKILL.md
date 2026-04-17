@@ -51,6 +51,7 @@ Based on the user's intent, load the corresponding reference document:
 | Review code | [references/review-guide.md](references/review-guide.md) | High signal-to-noise AI review with project rules |
 | Scan / refresh components | [references/init-guide.md](references/init-guide.md) §Scan | Re-scan component index and context files |
 | Audit project health | [references/init-guide.md](references/init-guide.md) §Audit | One-time architecture and convention analysis |
+| Remove AI config from project | [references/init-guide.md](references/init-guide.md) §Clean | Remove `.ai/`, `.github/copilot-instructions.md` |
 
 **How to route**: Read the user's message, identify the primary intent from the table above, then load and follow the corresponding reference document.
 
@@ -146,6 +147,7 @@ These are natural language triggers — users just say them in conversation:
 - "review 这段代码" / "Review this code" → review workflow
 - "重新扫描组件" / "Rescan components" → scan
 - "检查项目规范健康度" / "Audit project health" → audit
+- "移除 AI 规范" / "Remove AI config" / "Clean" → clean
 
 ## Integration with Other Skills
 

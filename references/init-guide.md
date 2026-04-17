@@ -3,6 +3,9 @@
 This document guides you through initializing AI development rules for a frontend project.
 You (the AI) will analyze the project, identify conventions, and generate tailored rule files.
 
+**Key principle: Confirm at every major step.** Don't generate silently — present findings
+and get user approval before proceeding.
+
 ## Prerequisites
 
 Before starting, confirm with the user:
@@ -70,6 +73,34 @@ src/                  → Main source directory
 - Import alias patterns (check tsconfig paths or vite resolve)
 - File naming conventions (PascalCase, camelCase, kebab-case)
 
+### ✅ Checkpoint 1: Confirm Detection Results
+
+Present findings to the user in this format and **wait for confirmation**:
+
+```
+🔍 项目检测结果：
+
+技术栈：
+  - 框架: React 18 + Next.js 14 (App Router)
+  - 语言: TypeScript (strict mode)
+  - 构建: Turbopack
+  - 状态管理: Zustand
+  - UI 库: Shadcn/ui + Tailwind CSS
+  - 测试: Vitest + Playwright
+  - CSS: Tailwind CSS + CSS Modules
+
+项目结构：
+  - 组件目录: src/components/ (flat structure)
+  - 页面目录: src/app/ (App Router)
+  - Hooks: src/hooks/
+  - API 层: src/services/ (axios wrapper)
+  - 文件命名: PascalCase for components, camelCase for utils
+
+检测有误或需要补充吗？确认后我将分析代码模式。
+```
+
+**Do NOT proceed until the user confirms.** If they correct something, update your findings.
+
 ## Step 3: Analyze Code Patterns
 
 Read 3-5 representative files from each category to identify patterns:
@@ -93,7 +124,42 @@ Read 3-5 representative files from each category to identify patterns:
 
 ## Step 4: Generate Rule Files
 
-Based on your analysis, create the `.ai/` directory:
+Based on your analysis, generate the rule files. **Present each file's key content
+to the user for review before writing.**
+
+### ✅ Checkpoint 2: Confirm Rule Plan
+
+Before generating files, show the user what rules you plan to create:
+
+```
+📋 将生成以下规则文件：
+
+1. .ai/rules/coding.md — 编码规范
+   - TypeScript strict, 禁止 any
+   - 命名: PascalCase 组件, camelCase 函数
+   - Import 顺序: React → 三方 → @/ → 相对 → 样式
+   - Props 使用 interface 定义并导出
+
+2. .ai/rules/architecture.md — 架构约束
+   - API 调用统一使用 src/services/ 的 request wrapper
+   - 状态分层: useState → Zustand → Context
+   - 组件层级: page → container → presentational
+
+3. .ai/rules/testing.md — 测试规范
+   - 单元测试: Vitest, *.test.ts
+   - E2E: Playwright, tests/*.spec.ts
+   - 测试骨架先行模式
+
+4. .ai/rules/review.md — Review 规则
+   - 5 维度检查（逻辑/规范/安全/性能/架构）
+
+5. .ai/context/project.md — 项目概述
+6. .ai/context/components.md — 组件索引 (N 个组件)
+
+需要调整、增删吗？确认后开始生成。
+```
+
+**Do NOT generate until the user confirms.** Adjust the plan based on feedback.
 
 ### 4.1 Create `.ai/rules/coding.md`
 
@@ -177,6 +243,24 @@ Scan components directory and generate an index:
 - **Usage**: Data display with sorting and pagination
 
 [... scan and list all shared components]
+```
+
+### ✅ Checkpoint 3: Confirm Before Compile
+
+After generating all files, present a summary and **wait for confirmation** before compiling:
+
+```
+✅ 规则文件已生成，请检查：
+
+  .ai/rules/coding.md        — 编码规范 (XX 条规则)
+  .ai/rules/architecture.md  — 架构约束
+  .ai/rules/testing.md       — 测试规范
+  .ai/rules/review.md        — Review 规则
+  .ai/context/project.md     — 项目概述
+  .ai/context/components.md  — 组件索引 (N 个组件)
+
+你可以查看任意文件内容，提出修改意见。
+确认后我将编译 → .github/copilot-instructions.md
 ```
 
 ## Step 5: Compile Rules
@@ -321,3 +405,38 @@ When the user asks for an audit:
 4. Ask user which suggestions to adopt
 5. Update `.ai/rules/` accordingly
 6. Recompile `copilot-instructions.md`
+
+## §Clean — Remove AI Config
+
+When the user asks to remove AI config / clean / 移除规范:
+
+1. Confirm with the user what to remove:
+
+```
+⚠️ 将移除以下 AI 配置：
+
+  .ai/                              — 所有规则和上下文文件
+  .github/copilot-instructions.md   — 编译后的指令文件
+
+是否保留 .github/ 目录中的其他文件（如果有）？
+确认后执行移除。
+```
+
+2. **Wait for confirmation**, then:
+
+```bash
+rm -rf .ai/
+rm -f .github/copilot-instructions.md
+# Remove .github/ only if empty
+rmdir .github/ 2>/dev/null
+```
+
+3. Report result:
+
+```
+✅ 已移除：
+  - .ai/ (规则 + 上下文)
+  - .github/copilot-instructions.md
+
+AI 将不再加载项目特定规则。如需重新初始化，说 "初始化 AI 规范"。
+```

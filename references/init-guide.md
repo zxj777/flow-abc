@@ -307,12 +307,22 @@ source files to identify coding patterns. **Don't read randomly — pick strateg
 
 ## Step 4: Generate Rule Files
 
-Based on your analysis, generate the rule files. **Present each file's key content
-to the user for review before writing.**
+Based on your analysis, generate the rule files. **The most critical task is translating
+the global behaviors discovered in Step 2.3 into explicit, actionable architecture rules.**
+
+**Rule quality checklist — every rule MUST:**
+- Be based on what you OBSERVED in the codebase, not what you assume
+- Include a concrete code example (✅ do this / ❌ not this)
+- State the severity level (MUST / SHOULD / MAY)
+- For architecture rules: explain WHY (what goes wrong if violated)
 
 ### ✅ Checkpoint 2: Confirm Rule Plan
 
-Before generating files, show the user what rules you plan to create:
+Before generating files, show the user what rules you plan to create.
+
+**⚠️ architecture.md must be the most detailed file.** It should directly reference
+the global behaviors from Checkpoint 1. If your plan for architecture.md is only 3-4
+bullet points, you haven't gone deep enough — go back and re-read the infrastructure files.
 
 ```
 📋 将生成以下规则文件：
@@ -322,16 +332,22 @@ Before generating files, show the user what rules you plan to create:
    - 命名: PascalCase 组件, camelCase 函数
    - Import 顺序: React → 三方 → @/ → 相对 → 样式
    - Props 使用 interface 定义并导出
+   - [其他从代码中观察到的编码规范]
 
-2. .ai/rules/architecture.md — 架构约束
-   - API 调用统一使用 src/services/ 的 request wrapper
-   - 状态分层: useState → Zustand → Context
-   - 组件层级: page → container → presentational
+2. .ai/rules/architecture.md — 架构约束（⚠️ 最重要的文件）
+   🔴 全局行为禁令（从 Step 2.3 直接转化）：
+   - 请求层: [具体禁令，如 "调用方不要 toast，interceptor 已统一处理"]
+   - 状态层: [具体禁令，如 "业务数据不要放 Redux，用 ahooks useRequest"]
+   - 路由层: [具体禁令，如 "页面不要自己检查权限"]
+   - UI 层: [具体禁令，如 "不要自己调 message.config"]
 
-3. .ai/rules/testing.md — 测试规范
-   - 单元测试: Vitest, *.test.ts
-   - E2E: Playwright, tests/*.spec.ts
-   - 测试骨架先行模式
+   📐 代码组织规则：
+   - API service 创建模式: [如何创建新 service 文件]
+   - 组件分层: [共享组件 vs 页面组件的边界]
+   - 状态管理分层: [什么时候用什么方案]
+   - 新文件放置: [新页面、新组件、新 service 的标准位置]
+
+3. .ai/rules/testing.md — 测试规范（如项目无测试可跳过）
 
 4. .ai/rules/review.md — Review 规则
    - 5 维度检查（逻辑/规范/安全/性能/架构）
@@ -369,16 +385,112 @@ Generate coding rules that reflect the project's ACTUAL conventions. Reference
 
 ### 4.2 Create `.ai/rules/architecture.md`
 
-**Must include:**
-- API call conventions (use the project's existing wrapper, not raw fetch/axios)
-- State management rules (when to use global vs local state)
-- Component hierarchy (page → container → presentational boundaries)
-- Directory placement rules (where new files should go)
-- The adapter/VO pattern if applicable (ViewModels for UI, adapters for API transformation)
+**This is the most important rule file.** It must contain the rules that prevent AI
+from breaking the project's architecture. Every global behavior from Step 2.3 MUST
+become an explicit rule here.
+
+**Required sections:**
+
+**Section 1: Global Behavior Prohibitions（全局行为禁令）**
+
+Directly translate every ⛔ from Step 2.3 into a rule with code examples:
+
+```markdown
+## 请求层约定
+
+### 错误处理
+**Level**: MUST
+- 全局 interceptor 已统一处理错误提示（`message.error(res.data.message)`）
+- 调用方 **禁止** 重复显示错误提示
+
+\`\`\`typescript
+// ✅ 正确：不处理错误，让 interceptor 处理
+const data = await request.get('/api/users');
+
+// ❌ 错误：重复 toast
+try {
+  const data = await request.get('/api/users');
+} catch (e) {
+  message.error(e.message); // interceptor 已经 toast 了，这里会弹两次
+}
+\`\`\`
+
+### 认证失败处理
+**Level**: MUST
+- 401 已由 interceptor 统一处理（dispatch redirectToLogin → 跳转 /login）
+- 调用方 **禁止** 自行判断 401 或处理登录跳转
+
+### Response 形状
+**Level**: MUST
+- interceptor 已 unwrap `res.data.data`，调用方拿到的是内层数据
+- 调用方 **不要** 再写 `response.data.data`
+
+[...同样为状态层、路由层、UI层 生成对应规则]
+```
+
+**Section 2: Code Organization Rules（代码组织规则）**
+
+```markdown
+## API Service 模式
+
+### 创建方式
+**Level**: MUST
+- 使用 `appRequest('/微服务名')` 创建 axios 实例
+- Service 文件 co-located 在对应页面目录下，命名为 `service.ts`
+
+\`\`\`typescript
+// ✅ 新建 service 的标准写法
+import { appRequest } from '@/utils/request';
+const request = appRequest('/user-service');
+
+export function getUserList(params: UserListParams) {
+  return request.get<UserListResponse>('/user/list', { params });
+}
+\`\`\`
+
+## 状态管理分层
+**Level**: MUST
+- 全局事件（登录跳转、登出、改密码）→ Redux dispatch
+- 页面业务数据 → ahooks useRequest / usePagination + 组件 state
+- **禁止** 把页面级业务数据放进 Redux store
+
+## 新文件放置
+**Level**: MUST
+- 新页面: `src/pages/<模块名>/` 下
+- 共享组件: `src/components/<ComponentName>/index.tsx`
+- 页面子组件: 与页面 co-located
+- Service: 与页面 co-located `service.ts`
+- 类型: co-located 在 service 或组件中，全局类型放 `src/types/`
+```
+
+**Section 3: Styling Conventions（样式约定）**
+
+```markdown
+## 样式方案
+**Level**: MUST
+- 主要方案: Emotion `css` prop
+- Ant Design 组件: 通过 props 控制，不要覆写内部样式（除非必要）
+- 响应式: html fontSize 基于 1920px 设计稿，使用 rem 单位
+
+\`\`\`typescript
+// ✅ Emotion css prop
+<div css={css\`padding: 0.16rem; background: #fff;\`}>
+
+// ❌ inline style 对象
+<div style={{ padding: '16px', background: '#fff' }}>
+
+// ❌ 引入新的 CSS 方案
+import styled from 'styled-components'; // 项目不使用 styled-components
+\`\`\`
+```
 
 ### 4.3 Create `.ai/rules/testing.md`
 
-**Must include:**
+**If the project has no testing setup, skip this file.** Don't generate test rules
+for a project that doesn't test. Instead, note in project.md that testing is not
+yet established.
+
+If testing exists:
 - Test file location and naming (`*.test.ts`, `*.spec.ts`, `__tests__/`)
 - Testing library and setup (what the project already uses)
 - Testing strategy (unit, integration, E2E scope)
@@ -407,10 +519,17 @@ Generate coding rules that reflect the project's ACTUAL conventions. Reference
 - Testing: [detected]
 
 ## Directory Structure
-[summarize the actual structure]
+[summarize the actual structure with file counts per directory]
+
+## Global Behaviors Summary
+[Copy the key findings from Step 2.3 — this serves as quick reference]
+- Request layer: [one-line summary of what's globally handled]
+- State layer: [one-line summary]
+- Router layer: [one-line summary]
+- UI/Style layer: [one-line summary]
 
 ## Key Conventions
-[top 5 most important conventions you identified]
+[top 5 most important conventions you identified, with file references]
 ```
 
 ### 4.6 Create `.ai/context/components.md`

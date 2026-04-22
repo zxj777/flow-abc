@@ -2,6 +2,18 @@
 
 This document defines how to perform code review as an AI assistant.
 
+## Step 0: Load Project Review Rules (REQUIRED)
+
+Before starting the review, check if the project has custom review rules:
+
+1. Look for `.ai/rules/review.md` in the project root
+2. If it exists, **read it first** — it contains project-specific review criteria that must be applied
+3. If it doesn't exist, proceed with the general criteria below
+
+> Project-specific rules in `.ai/rules/review.md` take precedence over the general guidelines in this document.
+
+---
+
 ## Core Principle: High Signal-to-Noise Ratio
 
 **Only flag issues that genuinely matter.** The goal is to catch real problems, not to nitpick.

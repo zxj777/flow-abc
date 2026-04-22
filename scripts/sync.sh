@@ -50,7 +50,20 @@ if [ "$FOUND" -eq 0 ]; then
   exit 1
 fi
 
-echo "✅ Compiled $FOUND rule file(s) → $OUTPUT_FILE"
+# Append review hook if review.md exists
+if [ -f "$RULES_DIR/review.md" ]; then
+  cat >> "$OUTPUT_FILE" << 'EOF'
+
+---
+
+## Code Review Hook
+
+When performing a code review (triggered by "/review", "review this code", "review these changes", or similar):
+1. Read `.ai/rules/review.md` — it contains project-specific review criteria
+2. Apply those criteria in addition to your general review judgment
+EOF
+  echo "🔗 Appended review hook (references .ai/rules/review.md)"
+fi
 
 # --- Monorepo: compile path-specific instructions ---
 
@@ -94,6 +107,21 @@ EOF
     echo -e "\n---\n" >> "$SUB_OUTPUT"
     SUB_FOUND=$((SUB_FOUND + 1))
   done
+
+  # Append review hook if sub-project review.md exists
+  if [ -f "$SUB_DIR/rules/review.md" ]; then
+    SUB_REVIEW_PATH=".ai-${NAME}/rules/review.md"
+    cat >> "$SUB_OUTPUT" << EOF
+
+---
+
+## Code Review Hook
+
+When performing a code review (triggered by "/review", "review this code", "review these changes", or similar):
+1. Read \`$SUB_REVIEW_PATH\` — it contains project-specific review criteria
+2. Apply those criteria in addition to your general review judgment
+EOF
+  fi
 
   if [ "$SUB_FOUND" -gt 0 ]; then
     echo "✅ Compiled $SUB_FOUND rule file(s) → $SUB_OUTPUT (applyTo: $APPLY_TO)"

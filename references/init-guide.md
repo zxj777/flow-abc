@@ -600,6 +600,20 @@ for f in .ai/rules/*.md; do
     echo -e "\n---\n" >> .github/copilot-instructions.md
   fi
 done
+
+# Append review hook if review.md exists
+if [ -f ".ai/rules/review.md" ]; then
+  cat >> .github/copilot-instructions.md << 'EOF'
+
+---
+
+## Code Review Hook
+
+When performing a code review (triggered by "/review", "review this code", "review these changes", or similar):
+1. Read `.ai/rules/review.md` — it contains project-specific review criteria
+2. Apply those criteria in addition to your general review judgment
+EOF
+fi
 ```
 
 ### Monorepo: Compile Path-Specific Instructions
@@ -640,6 +654,20 @@ EOF
     cat "$f" >> "$OUTPUT"
     echo -e "\n---\n" >> "$OUTPUT"
   done
+
+  # Append review hook if sub-project review.md exists
+  if [ -f "$sub_dir/rules/review.md" ]; then
+    cat >> "$OUTPUT" << EOF
+
+---
+
+## Code Review Hook
+
+When performing a code review (triggered by "/review", "review this code", "review these changes", or similar):
+1. Read \`$sub_dir/rules/review.md\` — it contains project-specific review criteria
+2. Apply those criteria in addition to your general review judgment
+EOF
+  fi
 done
 ```
 
